@@ -3,6 +3,7 @@
 1. Select a folder with 2 subfolders named "ON" and "OFF" in each folder.
 2. Having cells data with all 3 channels (488, 561 and 640) in both cell and beads data in each of the cell folders in the "ON" or "OFF folder.
 3. The folder structure should be as follows:
+<pre>
 Main folder
  |- ON
    |- Cell 1
@@ -27,3 +28,4 @@ Main folder
      |- Well 3_OT_Cell3_488 nm.tif
      |- Well 3_OT_Cell3_561 nm.tif
      |- Well 3_OT_Cell3_640.tif
+</pre>
