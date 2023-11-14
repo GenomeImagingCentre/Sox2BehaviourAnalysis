@@ -1,8 +1,5 @@
 clear; clc; close all; imtool close all;
-% mainDir = 'D:\Data\Bitong\20230726';
-% mainDir = '/Users/yewwong/Documents/Bitong/Analysis Code/20230915_After Export'; numb = 3;
 mainDir = 'D:\Data\Bitong\20230906 Hahaha\HeatMapTest'; numb = 3;
-% mainDir = 'D:\Data\Bitong\20230726'; numb = 2;
 
 % Adjusting value for minimum and maximum gfp/rfp signals, colocalisation
 % and mobility
@@ -20,8 +17,13 @@ gfpRng = 20; % range of gfp signals grouping
 rfpTgt = 16; % target rfp intensity group
 rfpRng = 20; % range of rfp signals grouping
 
+% Dwell time calculations
 frameIntervals = 1; %30; % number of SMT frames before GPF/RFP
 frameTime = 0; %0.606; % time taken to cycle through GFP/RFP in seconds
+
+% Computing "sox burst"
+soxGap = 3;
+maxSoxInterval = 2; % number of "soxGap" without sox before sox bursting off
 
 % Adjust what figures to plot
 plotGFP = 0;
@@ -186,12 +188,6 @@ for n = 1 :  length(allCells)
     smtCounts = smtReal;
   end
   
-%   [y, x] = find(smtThresh == 1);
-% %   idx = boundary(x, y);
-% %   figure; plot(x(idx), y(idx)); hold on;
-% %   plot(mean(x), mean(y), '+')
-%   smtCenter = [mean(x), mean(y)];
-
   rfpStack = tiffread([dirPath, filesep, rfpAFile]);
   rfpRaw = rfpStack(1).data;
   rfpThresh = imquantize(rfpRaw, multithresh(rfpRaw, 2)) >= 3; % rfp beads
@@ -202,11 +198,6 @@ for n = 1 :  length(allCells)
     [y, x] = find(rfpMap == m);
     rfpCenter(m, :) = [mean(x), mean(y)];
   end
-%   [y, x] = find(rfpThresh == 1);
-% %   idx = boundary(x, y);
-% %   figure; plot(x(idx), y(idx)); hold on;
-% %   plot(mean(x), mean(y), '+')
-%   rfpCenter = [mean(x), mean(y)];
 
   gfpStack = tiffread([dirPath, filesep, gfpAFile]);
   gfpRaw = gfpStack(1).data;
@@ -218,11 +209,6 @@ for n = 1 :  length(allCells)
     [y, x] = find(gfpMap == m);
     gfpCenter(m, :) = [mean(x), mean(y)];
   end
-%   [y, x] = find(gfpThresh == 1);
-% %   idx = boundary(x, y);
-% %   figure; plot(x(idx), y(idx)); hold on;
-% %   plot(mean(x), mean(y), '+')
-%   gfpCenter = [mean(x), mean(y)];
 
   % Using gfp as the reference point
   smtCorrection = smtCenter - gfpCenter; smtCorrection = round(smtCorrection);
@@ -251,12 +237,6 @@ for n = 1 :  length(allCells)
   cellData = zeros(length(stackGFP), 7); % gfp, rfp, colocalise, xgfp, ygfp, gfp signal, rfp signal
   fishData = zeros(size(stackFISH(1).data, 1), size(stackFISH(1).data, 2), length(stackGFP));
 
-  % Huygen correction
-%   correction = readtable([allCells(n).folder, filesep, adFiles(n).name], opts);
-%   correction = table2array(correction);
-%   smtCorrection = [sign(correction(1, 1)) * correction(1, 1), sign(correction(1, 2)) * correction(1, 2)];
-%   rfpCorrection = [sign(correction(2, 1)) * correction(2, 1), sign(correction(2, 2)) * correction(2, 2)];
-
   % Going through time-frames
   gfpUseInd = 1; rfpUseInd = 1;
   % Precompute frames to plot GFP/RFP
@@ -279,9 +259,6 @@ for n = 1 :  length(allCells)
     catch
       rfpLoc = imquantize(rfpRaw, multithresh(rfpRaw, 5)) >= 5;
     end
-%     if m == 121
-%       1; % check gfp/rfp catch point
-%     end
     imageSize = size(stackGFP(m).data, 1) * size(stackGFP(m).data, 2);
     gfpTol = 0.01 * imageSize; % was 0.1
     if sum(gfpLoc(:)) > gfpTol
@@ -312,11 +289,7 @@ for n = 1 :  length(allCells)
         intOI = intensity(counts > 10); % background adjust
         imshow(imadjust(gfpRaw, [intOI(2)/65535, intOI(end)/65535])); hold on;
       end
-%       plot(centerGFP(1), centerGFP(2), 'rx');
-%       savefig([allCells(n).folder, filesep, 'Data', filesep, gfpFile(1:end-4), '_GFP_Frame_', num2str(m), '.fig']);
-      %
-%       cellData(m, 4:5) = [mean(xGFP), mean(yGFP)];
-      %
+
     end
     if ~isempty(rfpData)
       cellData(m, 2) = 1;
@@ -604,6 +577,7 @@ for n = 1 :  length(allCells)
 %   plot(1:length(cellData), cellData(:, 2), 'r'); % RFP
 %   plot(1:length(cellData), cellData(:, 2), 'Color', '	#F08080', 'linewidth', 1.25); % RFP
   sox2Appear = zeros(length(cellData), 1);
+  sox2Coord = [];
   sox2AppearLong = zeros(length(cellData), 1);
   sox2Number = zeros(length(cellData), 1);
   minDist = zeros(length(cellData), 1);
@@ -617,6 +591,7 @@ for n = 1 :  length(allCells)
       if sum(distSox < distTol) > 0
         sox2Appear(m) = 1;
         sox2Number(m) = sum(distSox < distTol);
+        sox2Coord = [sox2Coord; m, tracksInFrame(distSox < distTol, :)];
         if size(soxInFrame, 1) > 0
           for p = 1 : size(soxInFrame, 1)
             distSoxH = squareform(pdist([soxInFrame(p, :); tracksInFrame(distSox < distTol, :)]));
@@ -957,6 +932,55 @@ for n = 1 :  length(allCells)
     imshow(imadjust(gfpRaw, [intOI(2)/65535, intOI(end)/65535])); hold on;
     plot(cellData(:,4), cellData(:,5), 'rx');
   end
+
+  % Sox Burst Quantification
+  frameWithSox = 1 : soxGap : length(cellData);
+  sbsoxNumber = sox2Number(frameWithSox);
+  sbsoxLong = sox2AppearLong(frameWithSox);
+
+  sox2Gone = find(sbsoxNumber == 0);
+  sox2GoneDuration = diff(find(sbsoxNumber == 0));
+  sox2BurstTimes = find(sox2GoneDuration >= maxSoxInterval + 1);
+  soxBurst = zeros(length(sox2BurstTimes), 3); % sox number, long sox, duration, start frame, end frame
+  for m = 1 : length(sox2BurstTimes)
+    sbFrames = sox2Gone(sox2BurstTimes(m)) + 1 : sox2Gone(sox2BurstTimes(m)) + sox2GoneDuration(sox2BurstTimes(m)) - 1;
+    rlFrames = frameWithSox(sbFrames);
+    soxInFrame = []; soxPreviousFrame = []; soxLongPreviousFrame = [];
+    sbSox = [];
+    for p = 1 : length(rlFrames)
+      frame = find(sox2Coord(:, 1) == rlFrames(p));
+      soxInFrame = sox2Coord(frame, 2:3);
+      sbSox = [sbSox; sox2Coord(frame, :)];
+      if size(soxInFrame, 1) > 0
+        soxBurst(m, 1) = soxBurst(m, 1) + size(soxInFrame, 1);
+        if ~isempty(soxPreviousFrame)
+          for q = 1 : size(soxInFrame, 1)
+            distSoxH = squareform(pdist([soxInFrame(q, :); soxPreviousFrame]));
+            distSoxH = distSoxH(1, 2:end);
+            if sum(distSoxH < 1) > 0
+              % a sox last longer than 2 frames!
+              soxBurst(m, 2) = soxBurst(m, 2) + 1;
+              soxBurst(m, 1) = soxBurst(m, 1) - 1;
+              if ~isempty(soxLongPreviousFrame)
+                distSoxL = squareform(pdist([soxInFrame(sum(distSoxH < 1), :); soxLongPreviousFrame]));
+                distSoxL = distSoxL(1, 2:end);
+                if sum(distSoxL < 1) > 0
+                  % the same sox still there, don't need to add 1 again
+                  soxBurst(m, 2) = soxBurst(m, 2) - 1;
+                end
+              end
+              soxLongPreviousFrame = soxInFrame(sum(distSoxH < 1), :);
+            end
+          end
+        end
+      end
+      soxPreviousFrame = soxInFrame;
+    end
+    soxBurst(m, 3) = (sox2GoneDuration(sox2BurstTimes(m)) - 2) * soxGap + 1;
+    soxBurst(m, 4) = rlFrames(1);
+    soxBurst(m, 5) = rlFrames(end);
+  end
+  % End Sox Burst Quantification
   close all;
 end
 writecell(dwellDataCompiled, [mainDir, filesep, 'Summary_dwell_time.xls'])
