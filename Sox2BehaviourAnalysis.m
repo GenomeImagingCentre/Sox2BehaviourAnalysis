@@ -980,6 +980,14 @@ for n = 1 :  length(allCells)
     soxBurst(m, 4) = rlFrames(1);
     soxBurst(m, 5) = rlFrames(end);
   end
+  soxBurstData = cell(1, 5);
+  soxBurstData{1, 1} = 'Number of Sox';
+  soxBurstData{1, 2} = 'Number of Long Binding Sox';
+  soxBurstData{1, 3} = 'Duration of Sox Burst';
+  soxBurstData{1, 4} = 'Sox Burst Starting Frame';
+  soxBurstData{1, 5} = 'Sox Burst Ending Frame';
+  soxBurstData = [soxBurstData; arrayfun(@num2str,soxBurst,'un',0)];
+  writecell(soxBurstData, [allCells(n).folder, filesep, 'Data', filesep, gfpFile(1:end-4), '_Sox_Burst_Data.xls'])
   % End Sox Burst Quantification
   close all;
 end
